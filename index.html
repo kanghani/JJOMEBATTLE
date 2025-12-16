@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JJOME BATTLE M</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            overflow: hidden;
+            touch-action: none; /* 모바일 터치 확대 방지 */
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #34495e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            background: #87CEEB; /* 하늘색 배경 */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* --- UI 오버레이 --- */
+        .ui-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: white;
+        }
+        
+        .hidden { display: none !important; }
+
+        /* --- 가상 조이패드 (모바일 컨트롤러) --- */
+        #mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            pointer-events: none; /* 버튼 외 영역 터치 통과 */
+            z-index: 10;
+            display: none; /* 게임 시작 후 보임 */
+        }
+
+        .control-group {
+            position: absolute;
+            bottom: 10px;
+            pointer-events: auto;
+        }
+
+        #d-pad { left: 20px; }
+        #action-pad { right: 20px; }
+
+        .btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.5);
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: white;
+            margin: 0 5px;
+            touch-action: manipulation;
+        }
+        
+        .btn:active { background: rgba(255, 255, 255, 0.6); }
+
+        /* 캐릭터 선택 스타일 */
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .char-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            border: 2px solid transparent;
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+        }
+        .char-slot.selected { border-color: #f1c40f; background: rgba(241,196,15,0.3); }
+        .char-slot img { width: 50px; height: 50px; object-fit: contain; }
+
+        /* 체력바 */
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            padding: 0 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            z-index: 5;
+            display: none;
+        }
+        .hp-bar-container {
+            width: 40%;
+            height: 25px;
+            background: #333;
+            border: 2px solid white;
+            border-radius: 5px;
+            position: relative;
+        }
+        .hp-fill {
+            height: 100%;
+            background: #e74c3c;
+            width: 100%;
+            transition: width 0.2s;
+        }
+        .name-tag {
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud">
+        <div style="width: 40%;">
+            <div class="name-tag">YOU</div>
+            <div class="hp-bar-container"><div id="p1-hp" class="hp-fill"></div></div>
+        </div>
+        <div style="width: 40%; text-align: right;">
+            <div class="name-tag">CPU</div>
+            <div class="hp-bar-container"><div id="p2-hp" class="hp-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <div id="d-pad" class="control-group">
+            <div class="btn" id="btn-left">◀</div>
+            <div class="btn" id="btn-right">▶</div>
+        </div>
+        <div id="action-pad" class="control-group">
+            <div class="btn" id="btn-atk" style="background:rgba(231, 76, 60, 0.4)">A</div>
+            <div class="btn" id="btn-jump" style="background:rgba(46, 204, 113, 0.4)">J</div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="ui-screen">
+        <h1 style="color:#f1c40f; font-size: 32px; text-align:center;">JJOME BATTLE M</h1>
+        <p>Choose Your Fighter</p>
+        <div class="char-grid" id="char-grid"></div>
+        <br>
+        <button id="start-btn" class="btn" style="width:auto; padding:0 30px; border-radius:20px; font-size:18px;">FIGHT!</button>
+    </div>
+
+    <div id="result-screen" class="ui-screen hidden">
+        <h1 id="result-text" style="font-size: 40px;">YOU WIN!</h1>
+        <button onclick="location.reload()" class="btn" style="width:auto; padding:0 30px; border-radius:20px;">REMATCH</button>
+    </div>
+</div>
+
+<script>
+    /** * JJOME BATTLE M - Mobile 1vsCPU Game 
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 화면 크기 자동 조정
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 설정
+    const GRAVITY = 0.6;
+    const GROUND_H = 100;
+    const SPEED = 4;
+    const JUMP_POWER = -13;
+    const IMG_FILES = ['image_0.png', 'image_1.png', 'image_2.png', 'image_3.png', 'image_4.png', 'image_5.png'];
+    
+    // 게임 상태
+    let gameState = 'START'; // START, PLAY, END
+    let images = [];
+    let p1CharIdx = 0;
+    let p2CharIdx = 1;
+    let gameLoopId;
+
+    // 입력 상태
+    const keys = { left: false, right: false, up: false, atk: false };
+
+    // 클래스: 플레이어 & AI
+    class Fighter {
+        constructor(x, isCPU, imgIdx) {
+            this.x = x;
+            this.y = 0;
+            this.w = 80;
+            this.h = 80;
+            this.vx = 0;
+            this.vy = 0;
+            this.hp = 100;
+            this.isCPU = isCPU;
+            this.img = images[imgIdx];
+            this.facingRight = !isCPU; // P1은 오른쪽, CPU는 왼쪽 봄
+            this.cooldown = 0;
+            this.grounded = false;
+            
+            // AI용 타이머
+            this.aiMoveTimer = 0;
+            this.aiAction = 0; // 0:대기, 1:왼쪽, 2:오른쪽
+        }
+
+        update(target) {
+            // 1. 움직임 처리
+            if (!this.isCPU) {
+                // 플레이어 조작
+                this.vx = 0;
+                if (keys.left) { this.vx = -SPEED; this.facingRight = false; }
+                if (keys.right) { this.vx = SPEED; this.facingRight = true; }
+                if (keys.up && this.grounded) { this.vy = JUMP_POWER; this.grounded = false; }
+                if (keys.atk && this.cooldown <= 0) { this.shoot(); this.cooldown = 40; }
+            } else {
+                // AI 조작 (간단한 로직)
+                this.aiUpdate(target);
+            }
+
+            // 물리 적용
+            this.vy += GRAVITY;
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // 바닥 충돌
+            if (this.y + this.h >= canvas.height - GROUND_H) {
+                this.y = canvas.height - GROUND_H - this.h;
+                this.vy = 0;
+                this.grounded = true;
+            }
+
+            // 벽 막힘
+            if (this.x < 0) this.x = 0;
+            if (this.x > canvas.width - this.w) this.x = canvas.width - this.w;
+
+            // 쿨다운 감소
+            if (this.cooldown > 0) this.cooldown--;
+        }
+
+        aiUpdate(target) {
+            this.aiMoveTimer++;
+            
+            // 60프레임마다 행동 결정
+            if (this.aiMoveTimer > 40) {
+                this.aiMoveTimer = 0;
+                const rand = Math.random();
+                
+                // 거리 계산
+                const dist = Math.abs(this.x - target.x);
+
+                // 1. 공격: 플레이어 쪽을 보고 쏘기
+                if (rand < 0.4) { // 40% 확률로 공격 시도
+                    this.facingRight = (target.x > this.x);
+                    if (this.cooldown <= 0) { this.shoot(); this.cooldown = 60; }
+                }
+                // 2. 이동: 너무 멀면 다가가고, 가까우면 도망
+                else if (rand < 0.8) {
+                    if (dist > 300) {
+                        this.aiAction = (target.x > this.x) ? 2 : 1; // 추격
+                    } else if (dist < 100) {
+                        this.aiAction = (target.x > this.x) ? 1 : 2; // 도망
+                    } else {
+                        this.aiAction = 0; // 대기
+                    }
+                }
+                // 3. 점프
+                else if (rand > 0.9 && this.grounded) {
+                    this.vy = JUMP_POWER; this.grounded = false;
+                }
+            }
+
+            this.vx = 0;
+            if (this.aiAction === 1) { this.vx = -SPEED * 0.8; this.facingRight = false; }
+            if (this.aiAction === 2) { this.vx = SPEED * 0.8; this.facingRight = true; }
+        }
+
+        shoot() {
+            const pX = this.facingRight ? this.x + this.w : this.x;
+            const pY = this.y + this.h / 2;
+            const dir = this.facingRight ? 1 : -1;
+            // 1P는 하트, CPU는 별
+            const type = this.isCPU ? '★' : '♥'; 
+            const color = this.isCPU ? '#f1c40f' : '#e74c3c';
+            projectiles.push(new Projectile(pX, pY, dir, type, color, this.isCPU));
+        }
+
+        draw() {
+            // 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(this.x + this.w/2, canvas.height - GROUND_H + 10, 30, 10, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // 캐릭터
+            ctx.save();
+            if (!this.facingRight) {
+                ctx.translate(this.x + this.w, this.y);
+                ctx.scale(-1, 1);
+                ctx.drawImage(this.img, 0, 0, this.w, this.h);
+            } else {
+                ctx.drawImage(this.img, this.x, this.y, this.w, this.h);
+            }
+            ctx.restore();
+
+            // 쿨다운 표시 (머리 위 바)
+            if (this.cooldown > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.fillRect(this.x, this.y - 10, this.w * (this.cooldown/60), 5);
+            }
+        }
+    }
+
+    // 투사체 클래스
+    class Projectile {
+        constructor(x, y, dir, type, color, isHostile) {
+            this.x = x;
+            this.y = y;
+            this.dir = dir;
+            this.speed = 8;
+            this.type = type;
+            this.color = color;
+            this.isHostile = isHostile; // true면 플레이어를 아프게 함
+            this.size = 20;
+            this.remove = false;
+        }
+
+        update() {
+            this.x += this.speed * this.dir;
+            if (this.x < -50 || this.x > canvas.width + 50) this.remove = true;
+        }
+
+        draw() {
+            ctx.font = '30px Arial';
+            ctx.fillStyle = this.color;
+            ctx.fillText(this.type, this.x, this.y);
+        }
+    }
+
+    let p1, cpu;
+    let projectiles = [];
+
+    // 초기화
+    function init() {
+        // 이미지 로딩 및 선택창 생성
+        const grid = document.getElementById('char-grid');
+        IMG_FILES.forEach((src, i) => {
+            const img = new Image();
+            img.src = src;
+            images.push(img);
+
+            const slot = document.createElement('div');
+            slot.className = 'char-slot';
+            if (i===0) slot.classList.add('selected');
+            
+            const slotImg = document.createElement('img');
+            slotImg.src = src;
+            slot.appendChild(slotImg);
+            
+            slot.onclick = () => {
+                document.querySelectorAll('.char-slot').forEach(s => s.classList.remove('selected'));
+                slot.classList.add('selected');
+                p1CharIdx = i;
+            };
+            grid.appendChild(slot);
+        });
+
+        // 터치 버튼 이벤트 연결
+        bindTouch('btn-left', 'left');
+        bindTouch('btn-right', 'right');
+        bindTouch('btn-jump', 'up');
+        bindTouch('btn-atk', 'atk');
+
+        document.getElementById('start-btn').onclick = startGame;
+    }
+
+    function bindTouch(id, keyName) {
+        const el = document.getElementById(id);
+        el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+        el.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+        // PC 마우스 테스트용
+        el.addEventListener('mousedown', (e) => { keys[keyName] = true; });
+        el.addEventListener('mouseup', (e) => { keys[keyName] = false; });
+    }
+
+    function startGame() {
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('mobile-controls').style.display = 'block';
+        document.getElementById('hud').style.display = 'flex';
+        
+        // CPU 캐릭터는 랜덤
+        p2CharIdx = Math.floor(Math.random() * IMG_FILES.length);
+        
+        // 게임 객체 생성
+        p1 = new Fighter(100, false, p1CharIdx);
+        cpu = new Fighter(canvas.width - 200, true, p2CharIdx);
+        projectiles = [];
+        
+        gameState = 'PLAY';
+        loop();
+    }
+
+    function loop() {
+        if (gameState !== 'PLAY') return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 배경
+        ctx.fillStyle = '#654321';
+        ctx.fillRect(0, canvas.height - GROUND_H, canvas.width, GROUND_H);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(0, canvas.height - GROUND_H, canvas.width, 20);
+
+        // 업데이트 & 그리기
+        p1.update(cpu);
+        p1.draw();
+        cpu.update(p1);
+        cpu.draw();
+
+        // 투사체 처리
+        projectiles.forEach(p => {
+            p.update();
+            p.draw();
+            
+            // 충돌 체크
+            const target = p.isHostile ? p1 : cpu;
+            if (!p.remove && 
+                p.x > target.x && p.x < target.x + target.w &&
+                p.y > target.y && p.y < target.y + target.h) {
+                    
+                p.remove = true;
+                target.hp -= 10;
+                updateHP();
+                
+                // 피격 효과 (간단히 흔들림)
+                target.x += (p.dir * 10);
+                
+                if (target.hp <= 0) endGame(p.isHostile ? 'LOSE' : 'WIN');
+            }
+        });
+        projectiles = projectiles.filter(p => !p.remove);
+
+        gameLoopId = requestAnimationFrame(loop);
+    }
+
+    function updateHP() {
+        document.getElementById('p1-hp').style.width = Math.max(0, p1.hp) + '%';
+        document.getElementById('p2-hp').style.width = Math.max(0, cpu.hp) + '%';
+    }
+
+    function endGame(result) {
+        gameState = 'END';
+        document.getElementById('result-screen').classList.remove('hidden');
+        document.getElementById('mobile-controls').style.display = 'none';
+        
+        const txt = document.getElementById('result-text');
+        if (result === 'WIN') {
+            txt.innerText = "YOU WIN! 🎉";
+            txt.style.color = "#f1c40f";
+        } else {
+            txt.innerText = "YOU LOSE... 😭";
+            txt.style.color = "#e74c3c";
+        }
+    }
+
+    window.onload = init;
+
+</script>
+</body>
+</html>
